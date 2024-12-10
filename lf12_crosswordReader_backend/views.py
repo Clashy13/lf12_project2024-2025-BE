@@ -1,0 +1,94 @@
+import os
+from rest_framework import generics
+from rest_framework.parsers import MultiPartParser, FormParser
+from .models import CrosswordModel
+from .serializers import OverviewSerializer, ImagePathSerializer
+from drf_spectacular.utils import extend_schema, OpenApiParameter
+from rest_framework.exceptions import ValidationError
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.filters import SearchFilter
+from rest_framework.pagination import LimitOffsetPagination
+from rest_framework.response import Response
+
+class Delete(generics.DestroyAPIView):
+    queryset = CrosswordModel.objects.all()
+
+    @extend_schema(
+        description='Delete specific crossword entry by ID',
+    )
+    def delete(self, request, *args, **kwargs):
+        return super().delete(request, *args, **kwargs)
+
+    def perform_destroy(self, instance):
+        # Collect file paths for deletion
+        original_image_path = instance.original_image.path if instance.original_image else None
+        solved_image_path = instance.solved_image.path if instance.solved_image else None
+
+        # Delete the database instance
+        super().perform_destroy(instance)
+
+        # Remove the files from the filesystem
+        if original_image_path and os.path.exists(original_image_path):
+            os.remove(original_image_path)
+
+        if solved_image_path and os.path.exists(solved_image_path):
+            os.remove(solved_image_path)
+    
+class Overview(generics.ListAPIView):
+    serializer_class = OverviewSerializer
+    queryset = CrosswordModel.objects.all()
+    pagination_class = LimitOffsetPagination
+    filter_backends = [SearchFilter]
+    search_fields = ['title']
+
+    @extend_schema(
+        description='Get an overview of all crossword images with search and pagination',
+        parameters=[
+            OpenApiParameter(name='search', type=str, location=OpenApiParameter.QUERY, description='Search by title'),
+            OpenApiParameter(name='limit', type=int, location=OpenApiParameter.QUERY, description='Number of records to return'),
+            OpenApiParameter(name='offset', type=int, location=OpenApiParameter.QUERY, description='Number of records to skip'),
+        ],
+        responses={200: OverviewSerializer(many=True)},
+    )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+class ImagePath(generics.RetrieveAPIView):
+    queryset = CrosswordModel.objects.all()
+    serializer_class = ImagePathSerializer
+
+    @extend_schema(
+        description='Get a specific crossword image by ID and image type',
+        parameters=[
+            OpenApiParameter(name='image_type', type=int, location=OpenApiParameter.QUERY, required=True, enum=[0, 1],
+                             description='0 for original image, 1 for solved image'),
+        ],
+        responses={200: ImagePathSerializer()},
+    )
+    def get(self, request, *args, **kwargs):
+        image_type = request.query_params.get('image_type')
+        if image_type not in ['0', '1']:
+            raise ValidationError("image_type must be either 0 or 1")
+        
+        instance = self.get_object()
+        if image_type == '0':
+            instance.image = instance.original_image
+        else:
+            instance.image = instance.solved_image
+        
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
+class UploadImage(generics.CreateAPIView):
+    queryset = CrosswordModel.objects.all()
+    serializer_class = ImagePathSerializer
+    parser_classes = (MultiPartParser, FormParser)
+
+    @extend_schema(
+        description='Upload a new crossword image',
+        request=ImagePathSerializer,
+        responses={201: ImagePathSerializer()},
+    )
+    def post(self, request, *args, **kwargs):
+        return super().post(request, *args, **kwargs)
+
