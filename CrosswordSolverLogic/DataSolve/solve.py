@@ -1,3 +1,5 @@
+from . import  AnswerLine
+
 def countAnswerConnections(answers: list, idx: int) -> int:
     count = 0
     for cellidx in answers[idx]["CellIndexes"]:
@@ -83,56 +85,7 @@ def solveAnswers(cellcount: int, answers: list) -> list[str]:
     bestsolution = min(solutions, key= lambda solution: solution.count(""))
     return bestsolution
 
-def main():
-    # cellcount = 11
-    # answers = [{"CellIndexes": [0,3,7,9],"Answers":["tuna"]},
-    #            {"CellIndexes": [2,3,4,5,6],"Answers":["music"]},
-    #            {"CellIndexes": [1,5],"Answers":["hi"]},
-    #            {"CellIndexes": [6,8,10],"Answers":["can"]}]
-    
-    # cellcount = 25
-    # answers = [{"CellIndexes": [0,1,2,3,4],"Answers":["GRADE"]},
-    #            {"CellIndexes": [5,6,7,8,9],"Answers":["LOVED"]},
-    #            {"CellIndexes": [10,11,12,13,14],"Answers":["AMONG"]},
-    #            {"CellIndexes": [15,16,17,18,19],"Answers":["RAISE"]},
-    #            {"CellIndexes": [20,21,22,23,24],"Answers":["ENDED"]},
-    #            {"CellIndexes": [0,5,10,15,20],"Answers":["GLARE"]},
-    #            {"CellIndexes": [1,6,11,16,21],"Answers":["ROMAN"]},
-    #            {"CellIndexes": [2,7,12,17,22],"Answers":["AVOID"]},
-    #            {"CellIndexes": [3,8,13,18,23],"Answers":["DENSE"]},
-    #            {"CellIndexes": [4,9,14,19,24],"Answers":["EDGED"]},]
-    answers = [{'CellIndexes': [3, 4, 5, 6], 'Answers': ['Hose', 'Albe', 'Baji', 'Body', 'Bogu', 'Capa', 'Cape', 'Faja', 'Gala', 'Geta', 'Gurt', 'Haik', 'Helm', 'Hemd', 'Hosl', 'Jock', 'Jupe', 'Kapu', 'Kilt', 'Kira', 'Mode', 'Muff', 'Ngop', 'Pelz', 'Ring', 'Robe', 'Rock', 'Sari', 'Slip', 'Sock', 'Tabi', 'Teil', 'Toga', 'Tuch', 'Tutu', 'Wams']},
-               {'CellIndexes': [4, 11, 18, 25, 32, 38, 46, 53], 'Answers': ['Ohnmacht']},
-               {'CellIndexes': [5, 12, 19], 'Answers': ['Sie']}, 
-               {'CellIndexes': [0, 6, 13, 20, 26, 34, 39, 48, 54], 'Answers': ['zerfallen']}, 
-               {'CellIndexes': [1, 7, 15, 21, 28], 'Answers': ['Pfeil']}, 
-               {'CellIndexes': [2, 9, 16, 23], 'Answers': ['Orca', 'Orka']}, 
-               {'CellIndexes': [7, 8, 9, 10], 'Answers': ['Furt']}, 
-               {'CellIndexes': [11, 12, 13, 14, 15], 'Answers': []}, 
-               {'CellIndexes': [22, 29, 35, 42, 50, 57], 'Answers': []}, 
-               {'CellIndexes': [24, 30, 37, 44, 52], 'Answers': ['Idaho', 'Maine', 'Texas']}, 
-               {'CellIndexes': [21, 22, 23, 24], 'Answers': ['Imam', 'Iman']}, 
-               {'CellIndexes': [17, 18, 19, 20], 'Answers': []}, 
-               {'CellIndexes': [26, 27, 28, 29], 'Answers': ['Aula']}, 
-               {'CellIndexes': [36, 43, 51, 58], 'Answers': ['Rede']}, 
-               {'CellIndexes': [41, 49, 56], 'Answers': []}, 
-               {'CellIndexes': [35, 36, 37], 'Answers': ['Uri', 'Zug']}, 
-               {'CellIndexes': [31, 32, 33, 34], 'Answers': ['Agag', 'Ahab', 'Amon', 'Amri', 'Amun', 'Baal', 'Bela', 'Jehu', 'Joas', 'Mesa', 'Omri', 'Phul', 'Saul', 'Thou']}, 
-               {'CellIndexes': [39, 40, 41, 42, 43, 44], 'Answers': ['Lotsen']}, 
-               {'CellIndexes': [49, 50, 51, 52], 'Answers': ['Oede']}, 
-               {'CellIndexes': [45, 46, 47, 48], 'Answers': ['Ahle']}, 
-               {'CellIndexes': [54, 55, 56, 57, 58], 'Answers': ['Nonne']}]
-    cellcount = 59
-
-    for answer in answers:
-        answer["Answers"] = [x.lower() for x in answer["Answers"]]
-    
-    bestsolution = solveAnswers(cellcount,answers)
-    st = ""
-    for c in bestsolution:
-        st += c
-        if c == "":
-            st += " "
-    print("'"+st+"'")
-    
-main()
+def solve(cellcount: int,answerlines: list[AnswerLine]) -> list[str]:
+    for answerline in answerlines:
+        answerline = [x.lower() for x in answerline.answers]
+    return solveAnswers(cellcount,answerlines)
