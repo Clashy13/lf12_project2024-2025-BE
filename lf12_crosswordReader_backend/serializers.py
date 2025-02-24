@@ -9,7 +9,7 @@ class OverviewSerializer(serializers.ModelSerializer):
 class ImagePathSerializer(serializers.ModelSerializer):
     class Meta:
         model = CrosswordModel
-        fields = ['original_image', 'solved_image']
+        fields = ['original_image']
 
     def to_representation(self, instance):
         ret = super().to_representation(instance)
