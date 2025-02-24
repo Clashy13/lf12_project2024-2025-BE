@@ -4,5 +4,6 @@ from .DataInsertion import AnswerInput
 def solve(imagepath):
     try:
         scannedimg, crossworddata = CrossWordDataExtraction.extractData(imagepath)
+        return True
     except Exception as e:
-        print(e)
+        return e
