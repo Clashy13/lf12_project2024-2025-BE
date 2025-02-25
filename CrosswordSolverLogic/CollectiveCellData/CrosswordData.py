@@ -23,7 +23,7 @@ class CrossWordData:
             for questionline in cluster.questionlines:
                 clusterdata["Questions"].append({
                     "Question":questionline.question,
-                    "CellIndexes": questionline.answercellindexes
+                    "CellIndexes": questionline.cellindexes
                 })
             clusterdata["CellRects"] = []
             for rect in cluster.answerrects:

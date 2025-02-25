@@ -1,0 +1,2 @@
+# Insert the URL of the website to scrape
+# Example: https://www.example.com/crossword/
