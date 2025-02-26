@@ -50,7 +50,7 @@ class CrosswordScraper:
         url = f"{self.BASE_URL}{question}.html"
 
         try:
-            response = self.session.get(url, timeout=10)
+            response = self.session.get(url, timeout=60)
             response.raise_for_status()
 
             soup = BeautifulSoup(response.content, "html.parser")
