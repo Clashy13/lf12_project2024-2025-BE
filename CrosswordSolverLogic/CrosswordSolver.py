@@ -15,9 +15,8 @@ def solve(imagepath):
         scannedimg, crossworddata = CrossWordDataExtraction.extractData(path)
         totalrects = []
         totalchars = []
-        scrapper = answers_scrapper.CrosswordScraper()
         for i, cluster in enumerate(crossworddata.clustersdata):
-            answerlines = scrapper.scrap(cluster.questionlines)
+            answerlines = answers_scrapper.CrosswordScraper().scrap(cluster.questionlines)
             chars = Algorithm.solve(len(cluster.answerrects),answerlines)
             totalrects.extend(cluster.answerrects)
             totalchars.extend(chars)
