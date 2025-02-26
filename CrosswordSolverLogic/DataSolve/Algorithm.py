@@ -1,5 +1,9 @@
 from . import  AnswerLine
 
+import time
+
+starttime = 0.
+
 def countAnswerConnections(answers: list[AnswerLine], idx: int) -> int:
     count = 0
     for cellidx in answers[idx].cellindexes:
@@ -42,6 +46,9 @@ def finalSolution(solution: list[str]) -> bool:
     return solution.count("") < len(solution) * 0.5
 
 def getSolutions(answeridx: int, answers: list[AnswerLine], filledansweridxs: list[int], solution: list[str]) -> list[list[str]]:
+    global starttime
+    if time.time() - starttime > 20:
+        raise Exception("Error while running solve algorithm: took too long due to too many empty answers")
     totalsolutions = []
     answer = answers[answeridx]
     cellidxs = answer.cellindexes
@@ -76,7 +83,8 @@ def getSolutions(answeridx: int, answers: list[AnswerLine], filledansweridxs: li
 
 def solveAnswers(cellcount: int, answers: list[AnswerLine]) -> list[str]:
     answers = sorted(answers, key= lambda answer: -countAnswerConnections(answers, answers.index(answer) ))
-
+    global starttime
+    starttime = time.time()
     emptysolution = ["" for i in range(cellcount)]
     solutions: list[list] = []
     for i in range(len(answers)):
