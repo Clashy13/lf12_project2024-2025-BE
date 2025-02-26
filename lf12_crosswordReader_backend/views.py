@@ -10,6 +10,10 @@ from rest_framework.filters import SearchFilter
 from rest_framework.pagination import LimitOffsetPagination
 from rest_framework.response import Response
 
+from . import settings
+from CrosswordSolverLogic import CrosswordSolver
+
+
 class Delete(generics.DestroyAPIView):
     queryset = CrosswordModel.objects.all()
 
@@ -89,6 +93,13 @@ class UploadImage(generics.CreateAPIView):
         request=ImagePathSerializer,
         responses={201: ImagePathSerializer()},
     )
+    
+    def perform_create(self, serializer):
+        if not os.path.isdir(str(settings.MEDIA_ROOT)+'/solved/'):
+            os.mkdir(str(settings.MEDIA_ROOT)+'/solved/')
+        instance = serializer.save()
+        CrosswordSolver.solve(instance.original_image.path)
+        
     def post(self, request, *args, **kwargs):
         return super().post(request, *args, **kwargs)
 
