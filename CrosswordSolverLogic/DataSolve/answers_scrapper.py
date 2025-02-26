@@ -29,7 +29,7 @@ class CrosswordScraper:
                 question_line.question, len(question_line.cellindexes)
             )
             answers.append(AnswerLine(list_of_answers, question_line.cellindexes))
-            time.sleep(2)  # Avoid accidentally DDOSing the site
+            time.sleep(0.2)  # Avoid accidentally DDOSing the site
         return answers
 
     def _get_answers(self, question: str, word_length: int) -> List[str]:
