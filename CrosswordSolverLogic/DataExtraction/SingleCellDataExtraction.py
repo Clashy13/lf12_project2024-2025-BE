@@ -9,7 +9,7 @@ import numpy as np
 import re
 import tesserocr
 
-testdata = r".\CrosswordSolverLogic\tessdata"
+testdata = "./CrosswordSolverLogic/tessdata"
 api = tesserocr.PyTessBaseAPI(path=testdata, lang='deu', psm=6) # type: ignore
 api.SetVariable('tessedit_char_whitelist', 'abcdefghijklmnopqrstuvwxyzäöüABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜ0123456789,;.:-—()ß“„ ')
 
