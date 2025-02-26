@@ -23,13 +23,12 @@ def updateRects(rects: list[CellRect], matrix: Cv2Matrix):
     for i,rect in enumerate(rects):
         rects[i] = transformRect(rect,matrix)
 
-def extractData(imagepath: str) -> tuple[Cv2Image,CrossWordData]:
-    path =  Path(imagepath)
-    if not path.is_file():
+def extractData(imagepath: Path) -> tuple[Cv2Image,CrossWordData]:
+    if not imagepath.is_file():
         raise Exception(f"Error while reading image file: cannot find file \'{imagepath}\'")
-    image = cv2.imread(imagepath)
+    image = cv2.imread(str(imagepath))
     if image is None:
-        raise Exception(f"Error while reading image file: file type \'{path.suffix}\' not supported")
+        raise Exception(f"Error while reading image file: file type \'{imagepath.suffix}\' not supported")
     
     rects = CellRectExtr.getCellRects(image.copy())
     scanned, matrix = Scan.scan(image, rects)

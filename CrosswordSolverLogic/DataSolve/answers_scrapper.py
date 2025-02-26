@@ -15,7 +15,7 @@ class CrosswordScraper:
         self.BASE_URL = self._load_base_url()
 
     def _load_base_url(self) -> str:
-        with open("../../config.txt", "r") as file:
+        with open("config.txt", "r") as file:
             for line in file:
                 line = line.strip()
                 if line and not line.startswith("#"):
@@ -83,3 +83,14 @@ class CrosswordScraper:
         sanitized_string = re.sub(r"[^a-zA-Z0-9äüöÄÜÖ]", "-", input_string)
         sanitized_string = re.sub(r"-+", "-", sanitized_string)
         return sanitized_string.strip("-")
+
+def main():
+    try:
+        answers = CrosswordScraper().scrap([QuestionLine("laubbaum", [0, 1, 2, 3])])
+        print(answers[0].answers)
+    except (ValueError, ConnectionError) as e:
+        print(f"Error: {str(e)}")
+ 
+ 
+if __name__ == "__main__":
+    main()
