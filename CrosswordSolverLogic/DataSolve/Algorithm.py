@@ -1,10 +1,10 @@
 from . import  AnswerLine
 
-def countAnswerConnections(answers: list, idx: int) -> int:
+def countAnswerConnections(answers: list[AnswerLine], idx: int) -> int:
     count = 0
-    for cellidx in answers[idx]["CellIndexes"]:
+    for cellidx in answers[idx].cellindexes:
         for i,answer in enumerate(answers):
-            if idx != i and cellidx in answer["CellIndexes"]:
+            if idx != i and cellidx in answer.cellindexes:
                 count += 1
                 break
     return count
@@ -21,13 +21,13 @@ def createSolutionWithWord(word: str, cellindexes: list[int], solution: list[str
         newsolution[cellindexes[i]] = word[i]
     return newsolution
 
-def filterConnectedAnswerIndexes(answers: list, filledansweridxs: list[int], solution: list[str]) -> list:
+def filterConnectedAnswerIndexes(answers: list[AnswerLine], filledansweridxs: list[int], solution: list[str]) -> list:
     filtered = []
     for i,answer in enumerate(answers):
         if i in filledansweridxs:
             continue
         connected = False
-        for othercellidx in answer["CellIndexes"]:
+        for othercellidx in answer.cellindexes:
             if solution[othercellidx] != "":
                 connected = True
                 break
@@ -35,17 +35,17 @@ def filterConnectedAnswerIndexes(answers: list, filledansweridxs: list[int], sol
             filtered.append(i)
     return filtered
 
-def sortedConnectedAnswerIndexes(indexes: list[int], answers: list, solution: list[str]) -> list[int]:
-    return sorted(indexes, key= lambda idx : sum(1 for cellidx in answers[idx]["CellIndexes"] if solution[cellidx] != "" ))
+def sortedConnectedAnswerIndexes(indexes: list[int], answers: list[AnswerLine], solution: list[str]) -> list[int]:
+    return sorted(indexes, key= lambda idx : sum(1 for cellidx in answers[idx].cellindexes if solution[cellidx] != "" ))
 
 def finalSolution(solution: list[str]) -> bool:
     return solution.count("") < len(solution) * 0.5
 
-def getSolutions(answeridx: int, answers: list, filledansweridxs: list[int], solution: list[str]) -> list[list[str]]:
+def getSolutions(answeridx: int, answers: list[AnswerLine], filledansweridxs: list[int], solution: list[str]) -> list[list[str]]:
     totalsolutions = []
     answer = answers[answeridx]
-    cellidxs = answer["CellIndexes"]
-    for word in answer["Answers"]:
+    cellidxs = answer.cellindexes
+    for word in answer.answers:
         if not wordFits(word,cellidxs,solution):
             continue
 
@@ -74,7 +74,7 @@ def getSolutions(answeridx: int, answers: list, filledansweridxs: list[int], sol
 
     return totalsolutions
 
-def solveAnswers(cellcount: int, answers: list) -> list[str]:
+def solveAnswers(cellcount: int, answers: list[AnswerLine]) -> list[str]:
     answers = sorted(answers, key= lambda answer: -countAnswerConnections(answers, answers.index(answer) ))
 
     emptysolution = ["" for i in range(cellcount)]
@@ -87,5 +87,5 @@ def solveAnswers(cellcount: int, answers: list) -> list[str]:
 
 def solve(cellcount: int,answerlines: list[AnswerLine]) -> list[str]:
     for answerline in answerlines:
-        answerline = [x.lower() for x in answerline.answers]
+        answerline.answers = [x.lower() for x in answerline.answers]
     return solveAnswers(cellcount,answerlines)

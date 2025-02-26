@@ -96,6 +96,7 @@ class UploadImage(generics.CreateAPIView):
     
     def perform_create(self, serializer):
         if not os.path.isdir(str(settings.MEDIA_ROOT)+'/solved/'):
+            os.mkdir(settings.MEDIA_ROOT)
             os.mkdir(str(settings.MEDIA_ROOT)+'/solved/')
         instance = serializer.save()
         CrosswordSolver.solve(instance.original_image.path)
