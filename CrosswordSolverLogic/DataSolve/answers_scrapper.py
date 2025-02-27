@@ -46,29 +46,53 @@ class CrosswordScraper:
         if not question or not isinstance(word_length, int) or word_length < 1:
             raise ValueError("Invalid question or word length")
 
+        oldquestion = question
         question = self._replace_special_chars(question)
         url = f"{self.BASE_URL}{question}.html"
 
         try:
-            response = self.session.get(url, timeout=60)
-            response.raise_for_status()
-
-            soup = BeautifulSoup(response.content, "html.parser")
-            answers_payload = soup.find("div", {"data-answers": True})
-
-            if not answers_payload or len(answers_payload) == 0:  # type: ignore
-                print(
-                    f"\033[93mWarning: Couldn't find the page for question '{question}'\033[0m"
-                )
-                return []
-
-            answers_json = json.loads(answers_payload["data-answers"])  # type: ignore
-            filtered_answers = self._filter_by_length(answers_json, word_length)
-
-            return self._extract_answer_words(filtered_answers, word_length)
+            response = self._get_response(url)
+            if response.history and response.history[0].status_code == 302:
+                return self._get_sub_answers(oldquestion,word_length)
+            else:
+                return self._response_to_answers(response, question, word_length)
 
         except requests.RequestException as e:
             raise ConnectionError(f"Failed to fetch answers: {str(e)}")
+
+    def _get_sub_answers(self, question: str, word_length: int) -> List[str]:
+        answers = []
+        if "," in question or ";" in question:
+            questions = re.split(",|;",question)
+            questions = [self._replace_special_chars(q) for q in questions]
+            if "" not in questions:
+                for qst in questions:
+                    url = f"{self.BASE_URL}{qst}.html"
+                    resp = self._get_response(url)
+                    if resp.history and resp.history[0].status_code == 302:
+                        continue
+                    answers.extend(self._response_to_answers(resp, qst, word_length))
+        return answers
+
+    def _get_response(self,url: str) -> requests.Response:
+        response = self.session.get(url, timeout=60)
+        response.raise_for_status()
+        return response
+    
+    def _response_to_answers(self, response: requests.Response, question: str, word_length: int) -> list[str]:
+        soup = BeautifulSoup(response.content, "html.parser")
+        answers_payload = soup.find("div", {"data-answers": True})
+
+        if not answers_payload or len(answers_payload) == 0:  # type: ignore
+            print(
+                f"\033[93mWarning: Couldn't find the page for question '{question}'\033[0m"
+            )
+            return []
+
+        answers_json = json.loads(answers_payload["data-answers"])  # type: ignore
+        filtered_answers = self._filter_by_length(answers_json, word_length)
+
+        return self._extract_answer_words(filtered_answers, word_length)
 
     def _filter_by_length(self, answers: Dict, length: int) -> Dict:
         return dict(filter(lambda x: x[0] == str(length), answers.items()))
