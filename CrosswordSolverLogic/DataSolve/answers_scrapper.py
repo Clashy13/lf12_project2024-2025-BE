@@ -4,6 +4,9 @@ import json
 import re
 import requests
 import time
+import os
+from groq import Groq
+from dotenv import load_dotenv
 
 from CrosswordSolverLogic.CollectiveCellData import QuestionLine
 from CrosswordSolverLogic.DataSolve import AnswerLine
@@ -30,6 +33,8 @@ class CrosswordScraper:
             )
             answers.append(AnswerLine(list_of_answers, question_line.cellindexes))
             time.sleep(0.2)  # Avoid accidentally DDOSing the site
+
+        print(self._AI_spell_check(AnswerLine(["zeitlos; ijmmerzu"], [0, 1, 2, 3])))
         return answers
 
     def _get_answers(self, question: str, word_length: int) -> List[str]:
@@ -53,7 +58,7 @@ class CrosswordScraper:
         try:
             response = self._get_response(url)
             if response.history and response.history[0].status_code == 302:
-                return self._get_sub_answers(oldquestion,word_length)
+                return self._get_sub_answers(oldquestion, word_length)
             else:
                 return self._response_to_answers(response, question, word_length)
 
@@ -63,7 +68,7 @@ class CrosswordScraper:
     def _get_sub_answers(self, question: str, word_length: int) -> List[str]:
         answers = []
         if "," in question or ";" in question:
-            questions = re.split(",|;",question)
+            questions = re.split(",|;", question)
             questions = [self._replace_special_chars(q) for q in questions]
             if "" not in questions:
                 for qst in questions:
@@ -74,12 +79,14 @@ class CrosswordScraper:
                     answers.extend(self._response_to_answers(resp, qst, word_length))
         return answers
 
-    def _get_response(self,url: str) -> requests.Response:
+    def _get_response(self, url: str) -> requests.Response:
         response = self.session.get(url, timeout=60)
         response.raise_for_status()
         return response
-    
-    def _response_to_answers(self, response: requests.Response, question: str, word_length: int) -> list[str]:
+
+    def _response_to_answers(
+        self, response: requests.Response, question: str, word_length: int
+    ) -> list[str]:
         soup = BeautifulSoup(response.content, "html.parser")
         answers_payload = soup.find("div", {"data-answers": True})
 
@@ -102,11 +109,36 @@ class CrosswordScraper:
             return []
         return list(filtered_answers[str(length)].keys())
 
-    # Note - Question with 2 words might cause trouble
     def _replace_special_chars(self, input_string):
         sanitized_string = re.sub(r"[^a-zA-Z0-9äüöÄÜÖ]", "-", input_string)
         sanitized_string = re.sub(r"-+", "-", sanitized_string)
         return sanitized_string.strip("-")
+
+    def _AI_spell_check(self, answer_line: AnswerLine):
+        load_dotenv()
+        api_key = os.getenv("GROQ_API_KEY")
+        if not api_key:
+            print("\033[93mWarning: API key not found\033[0m")
+            return answer_line
+
+        client = Groq(api_key=api_key)
+        prompt = (
+            "Agiere als Rechtschreibkorrektor. Korrigiere alle falsch geschriebenen. Ohne Kommentar zu geben. "
+            "Wörter in Fragen, aber lasse alle Sonderzeichen, Satzzeichen und "
+            "Formatierungen unverändert."
+            "Erhalte die Groß- und Kleinschreibung bei, wo es "
+            "notwendig ist. Beispiel input: 'groß; gejb' -> 'groß; gelb'"
+        )
+        resp = client.chat.completions.create(
+            model="llama3-8b-8192",
+            messages=[
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": " ".join(answer_line.answers)},
+            ],
+        )
+
+        return resp.choices[0].message.content
+
 
 def main():
     try:
@@ -114,7 +146,7 @@ def main():
         print(answers[0].answers)
     except (ValueError, ConnectionError) as e:
         print(f"Error: {str(e)}")
- 
- 
+
+
 if __name__ == "__main__":
     main()
