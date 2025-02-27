@@ -95,5 +95,5 @@ def solveAnswers(cellcount: int, answers: list[AnswerLine]) -> list[str]:
 
 def solve(cellcount: int,answerlines: list[AnswerLine]) -> list[str]:
     for answerline in answerlines:
-        answerline.answers = [x.lower() for x in answerline.answers]
+        answerline.answers = [x.upper() for x in answerline.answers]
     return solveAnswers(cellcount,answerlines)
