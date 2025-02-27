@@ -33,8 +33,6 @@ class CrosswordScraper:
             )
             answers.append(AnswerLine(list_of_answers, question_line.cellindexes))
             time.sleep(0.2)  # Avoid accidentally DDOSing the site
-
-        print(self._AI_spell_check(AnswerLine(["zeitlos; ijmmerzu"], [0, 1, 2, 3])))
         return answers
 
     def _get_answers(self, question: str, word_length: int) -> List[str]:
@@ -52,15 +50,20 @@ class CrosswordScraper:
             raise ValueError("Invalid question or word length")
 
         oldquestion = question
-        question = self._replace_special_chars(question)
-        url = f"{self.BASE_URL}{question}.html"
 
         try:
-            response = self._get_response(url)
-            if response.history and response.history[0].status_code == 302:
-                return self._get_sub_answers(oldquestion, word_length)
-            else:
-                return self._response_to_answers(response, question, word_length)
+            answers = self._respond_answers(question,word_length)
+            if answers is not None:
+                return answers
+            
+            # corrected_question = self._AI_spell_check(question)
+            # if corrected_question:
+            #     print(corrected_question)
+            #     answers = self._respond_answers(corrected_question,word_length)
+            #     if answers is not None:
+            #         return answers
+            
+            return self._get_sub_answers(oldquestion, word_length)
 
         except requests.RequestException as e:
             raise ConnectionError(f"Failed to fetch answers: {str(e)}")
@@ -79,6 +82,14 @@ class CrosswordScraper:
                     answers.extend(self._response_to_answers(resp, qst, word_length))
         return answers
 
+    def _respond_answers(self, question: str, word_length: int) -> list[str] | None:
+        question = self._replace_special_chars(question)
+        url = f"{self.BASE_URL}{question}.html"
+        response = self._get_response(url)
+        if not response.history or response.history[0].status_code != 302:
+            return self._response_to_answers(response, question, word_length)
+        return None
+    
     def _get_response(self, url: str) -> requests.Response:
         response = self.session.get(url, timeout=60)
         response.raise_for_status()
@@ -114,12 +125,12 @@ class CrosswordScraper:
         sanitized_string = re.sub(r"-+", "-", sanitized_string)
         return sanitized_string.strip("-")
 
-    def _AI_spell_check(self, answer_line: AnswerLine):
+    def _AI_spell_check(self, question: str) -> str | None:
         load_dotenv()
         api_key = os.getenv("GROQ_API_KEY")
         if not api_key:
             print("\033[93mWarning: API key not found\033[0m")
-            return answer_line
+            return question
 
         client = Groq(api_key=api_key)
         prompt = (
@@ -133,7 +144,7 @@ class CrosswordScraper:
             model="llama3-8b-8192",
             messages=[
                 {"role": "system", "content": prompt},
-                {"role": "user", "content": " ".join(answer_line.answers)},
+                {"role": "user", "content": question},
             ],
         )
 
