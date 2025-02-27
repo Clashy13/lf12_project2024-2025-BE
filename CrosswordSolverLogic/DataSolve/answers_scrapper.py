@@ -49,8 +49,6 @@ class CrosswordScraper:
         if not question or not isinstance(word_length, int) or word_length < 1:
             raise ValueError("Invalid question or word length")
 
-        oldquestion = question
-
         try:
             answers = self._respond_answers(question,word_length)
             if answers is not None:
@@ -63,7 +61,7 @@ class CrosswordScraper:
             #     if answers is not None:
             #         return answers
             
-            return self._get_sub_answers(oldquestion, word_length)
+            return self._get_sub_answers(question, word_length)
 
         except requests.RequestException as e:
             raise ConnectionError(f"Failed to fetch answers: {str(e)}")
