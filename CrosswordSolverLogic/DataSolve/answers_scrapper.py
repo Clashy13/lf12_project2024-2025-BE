@@ -1,12 +1,15 @@
-from bs4 import BeautifulSoup
-from typing import List, Dict
 import json
+import os
 import re
 import requests
 import time
-import os
-from groq import Groq
+
+from bs4 import BeautifulSoup
 from dotenv import load_dotenv
+from duckduckgo_search import DDGS
+from groq import Groq
+from typing import List, Dict
+from urllib.parse import urlparse
 
 from CrosswordSolverLogic.CollectiveCellData import QuestionLine
 from CrosswordSolverLogic.DataSolve import AnswerLine
@@ -50,17 +53,17 @@ class CrosswordScraper:
             raise ValueError("Invalid question or word length")
 
         try:
-            answers = self._respond_answers(question,word_length)
+            answers = self._respond_answers(question, word_length)
             if answers is not None:
                 return answers
-            
+
             # corrected_question = self._AI_spell_check(question)
             # if corrected_question:
             #     print(corrected_question)
             #     answers = self._respond_answers(corrected_question,word_length)
             #     if answers is not None:
             #         return answers
-            
+
             return self._get_sub_answers(question, word_length)
 
         except requests.RequestException as e:
@@ -80,6 +83,20 @@ class CrosswordScraper:
                     answers.extend(self._response_to_answers(resp, qst, word_length))
         return answers
 
+    def _get_alternative_question(self, question: str):
+        with DDGS() as ddgs:
+            results = list(ddgs.text(question, max_results=1))
+            if results:
+                url_path = urlparse(results[0]["href"]).path.strip("fragen/")
+                if url_path.endswith(".html"):
+                    url_path = url_path[:-5]
+                return url_path
+            return None
+
+    def check_contains(self, url_path, keywords):
+        words = keywords.split("-")
+        return any(word.lower() in url_path.lower() for word in words)
+
     def _respond_answers(self, question: str, word_length: int) -> list[str] | None:
         question = self._replace_special_chars(question)
         url = f"{self.BASE_URL}{question}.html"
@@ -87,7 +104,7 @@ class CrosswordScraper:
         if not response.history or response.history[0].status_code != 302:
             return self._response_to_answers(response, question, word_length)
         return None
-    
+
     def _get_response(self, url: str) -> requests.Response:
         response = self.session.get(url, timeout=60)
         response.raise_for_status()
