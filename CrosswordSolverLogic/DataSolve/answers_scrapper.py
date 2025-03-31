@@ -1,19 +1,15 @@
 import json
-import os
-import re
 import requests
 import time
 
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
-from duckduckgo_search import DDGS
-from groq import Groq
 from typing import List, Dict
 from urllib.parse import urlparse
 
 from CrosswordSolverLogic.CollectiveCellData import QuestionLine
 from CrosswordSolverLogic.DataSolve import AnswerLine
-
+from CrosswordSolverLogic.DataSolve.QuestionURLMatcher import QuestionURLMatcher
 
 class CrosswordScraper:
     def __init__(self):
@@ -31,11 +27,15 @@ class CrosswordScraper:
     def scrap(self, question_lines: List[QuestionLine]) -> list[AnswerLine]:
         answers = []
         for question_line in question_lines:
+            cleaned_question = QuestionURLMatcher.cleanQuestion(question_line.question)
+            new_question = QuestionURLMatcher.matchedQuestion(cleaned_question)
+            url_question = new_question.replace(" ","-")
+            similarity = QuestionURLMatcher.similarity(cleaned_question, new_question)
             list_of_answers = self._get_answers(
-                question_line.question, len(question_line.cellindexes)
+                url_question, len(question_line.cellindexes)
             )
-            answers.append(AnswerLine(list_of_answers, question_line.cellindexes))
-            time.sleep(0.2)  # Avoid accidentally DDOSing the site
+            answers.append(AnswerLine(list_of_answers, question_line.cellindexes, similarity))
+            time.sleep(0.001)  # Avoid accidentally DDOSing the site
         return answers
 
     def _get_answers(self, question: str, word_length: int) -> List[str]:
@@ -53,58 +53,18 @@ class CrosswordScraper:
             raise ValueError("Invalid question or word length")
 
         try:
-            answers = self._respond_answers(question, word_length)
-            if answers is not None:
-                return answers
-
-            # corrected_question = self._AI_spell_check(question)
-            # if corrected_question:
-            #     print(corrected_question)
-            #     answers = self._respond_answers(corrected_question,word_length)
-            #     if answers is not None:
-            #         return answers
-
-            return self._get_sub_answers(question, word_length)
+            url = self._get_url(question)
+            response = self._get_response(url)
+            if not response.history or response.history[0].status_code != 302:
+                return self._response_to_answers(response, question, word_length)
+            return []
 
         except requests.RequestException as e:
             raise ConnectionError(f"Failed to fetch answers: {str(e)}")
 
-    def _get_sub_answers(self, question: str, word_length: int) -> List[str]:
-        answers = []
-        if "," in question or ";" in question:
-            questions = re.split(",|;", question)
-            questions = [self._replace_special_chars(q) for q in questions]
-            if "" not in questions:
-                for qst in questions:
-                    url = f"{self.BASE_URL}{qst}.html"
-                    resp = self._get_response(url)
-                    if resp.history and resp.history[0].status_code == 302:
-                        continue
-                    answers.extend(self._response_to_answers(resp, qst, word_length))
-        return answers
-
-    def _get_alternative_question(self, question: str):
-        with DDGS() as ddgs:
-            results = list(ddgs.text(question, max_results=1))
-            if results:
-                url_path = urlparse(results[0]["href"]).path.strip("fragen/")
-                if url_path.endswith(".html"):
-                    url_path = url_path[:-5]
-                return url_path
-            return None
-
-    def check_contains(self, url_path, keywords):
-        words = keywords.split("-")
-        return any(word.lower() in url_path.lower() for word in words)
-
-    def _respond_answers(self, question: str, word_length: int) -> list[str] | None:
-        question = self._replace_special_chars(question)
-        url = f"{self.BASE_URL}{question}.html"
-        response = self._get_response(url)
-        if not response.history or response.history[0].status_code != 302:
-            return self._response_to_answers(response, question, word_length)
-        return None
-
+    def _get_url(self, question: str) -> str:
+        return f"{self.BASE_URL}{question}.html"
+    
     def _get_response(self, url: str) -> requests.Response:
         response = self.session.get(url, timeout=60)
         response.raise_for_status()
@@ -134,36 +94,6 @@ class CrosswordScraper:
         if str(length) not in filtered_answers:
             return []
         return list(filtered_answers[str(length)].keys())
-
-    def _replace_special_chars(self, input_string):
-        sanitized_string = re.sub(r"[^a-zA-Z0-9äüöÄÜÖ]", "-", input_string)
-        sanitized_string = re.sub(r"-+", "-", sanitized_string)
-        return sanitized_string.strip("-")
-
-    def _AI_spell_check(self, question: str) -> str | None:
-        load_dotenv()
-        api_key = os.getenv("GROQ_API_KEY")
-        if not api_key:
-            print("\033[93mWarning: API key not found\033[0m")
-            return question
-
-        client = Groq(api_key=api_key)
-        prompt = (
-            "Agiere als Rechtschreibkorrektor. Korrigiere alle falsch geschriebenen. Ohne Kommentar zu geben. "
-            "Wörter in Fragen, aber lasse alle Sonderzeichen, Satzzeichen und "
-            "Formatierungen unverändert."
-            "Erhalte die Groß- und Kleinschreibung bei, wo es "
-            "notwendig ist. Beispiel input: 'groß; gejb' -> 'groß; gelb'"
-        )
-        resp = client.chat.completions.create(
-            model="llama3-8b-8192",
-            messages=[
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": question},
-            ],
-        )
-
-        return resp.choices[0].message.content
 
 
 def main():

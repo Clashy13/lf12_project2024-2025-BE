@@ -41,6 +41,11 @@ This is the backend for the CrossSolver (name subject to change), a school proje
     ```sh
     pip install -r requirements.txt
     ```
+  
+4. **Install spaCy model**
+    ```sh
+    python -m spacy download de_core_news_lg
+    ```
 
 4. **Apply migrations:**
     ```sh
