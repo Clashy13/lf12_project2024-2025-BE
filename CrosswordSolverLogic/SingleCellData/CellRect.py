@@ -11,6 +11,9 @@ class CellRect:
     def __getitem__(self, index) -> Point:
         return self._points[index]
     
+    def __setitem__(self, index, value):
+        self._points[index] = value
+    
     def __iter__(self):
         return iter(self._points)
     

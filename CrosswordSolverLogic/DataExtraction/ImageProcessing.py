@@ -7,13 +7,21 @@ sr = cv2.dnn_superres.DnnSuperResImpl_create() # type: ignore
 sr.readModel("CrosswordSolverLogic/TensorFlow/ESPCN_x2.pb")
 sr.setModel("espcn",2)
 
-def preProcessImage(img: Cv2Image) -> Cv2Image:
-    processed = img.copy()
-    processed = cv2.cvtColor(processed,cv2.COLOR_BGR2GRAY)
-    processed = cv2.GaussianBlur(processed, (5, 5), 0)
-    processed = cv2.adaptiveThreshold(processed, 255, cv2.ADAPTIVE_THRESH_MEAN_C,
-                                      cv2.THRESH_BINARY_INV, 31, 9)
-    return processed
+def prePreProcessGrid(img):
+    grey = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
+    blur = cv2.GaussianBlur(grey, (11, 11), 0)
+    thresh = cv2.adaptiveThreshold(blur, 255, cv2.ADAPTIVE_THRESH_MEAN_C,
+                                      cv2.THRESH_BINARY_INV, 3, 2)
+    kernel = np.ones((3,3),np.uint8)
+    dilation = cv2.dilate(thresh,kernel,iterations = 2)
+    return dilation
+
+def preProcessGrid(img):
+    grey = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
+    blur = cv2.GaussianBlur(grey, (5, 5), 0)
+    thresh = cv2.adaptiveThreshold(blur, 255, cv2.ADAPTIVE_THRESH_MEAN_C,
+                                      cv2.THRESH_BINARY_INV, 51, 11)
+    return thresh
 
 def preProcessTextCell(img: Cv2Image) -> Cv2Image:
     sigma = 2
