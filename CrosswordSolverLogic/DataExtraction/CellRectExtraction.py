@@ -9,6 +9,9 @@ import shapely.geometry
 
 def getCellRects(img: Cv2Image) -> list[CellRect]:
     roughrects = _getRoughCellRects(img)
+    if not roughrects:
+        raise Exception("Error while extracting cell rects: no cell rects found")
+    
     cellsize = _getCellSize(roughrects)
     celldist = _getCellDistance(roughrects,cellsize)
 
@@ -20,6 +23,8 @@ def getCellRects(img: Cv2Image) -> list[CellRect]:
     resizedimg = cv2.resize(img,(newwidth,newheight))
 
     preciserects = _getPreciseCellRects(resizedimg,cellsize)
+    if not preciserects:
+        raise Exception("Error while extracting cell rects: no cell rects found")
 
     _resizeCellRects(preciserects,factor)
 
