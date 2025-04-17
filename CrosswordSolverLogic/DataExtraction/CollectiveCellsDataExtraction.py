@@ -155,7 +155,7 @@ def _extractIndividualCellsData(img: Cv2Image,cellrects: list[CellRect]) -> list
             num = SCellDataExtr.extractNumberData(textimg)
             if num is not None:
                 indvcellsdata[i].content.number = num
-                indvcellsdata[i].content.blank = True
+            indvcellsdata[i].content.blank = True
 
     return indvcellsdata
 

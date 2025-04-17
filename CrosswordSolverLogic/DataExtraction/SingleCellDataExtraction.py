@@ -1,3 +1,4 @@
+import numpy as np
 from . import ImageProcessing as ImgProc
 from . import ArrowDataExtraction as ArrowDataExtr
 from ..Type import Cv2Image
@@ -50,9 +51,10 @@ def extractQuestionData(img: Cv2Image) -> str:
 
 def extractNumberData(img: Cv2Image) -> int | None:
     api.SetVariable('tessedit_char_whitelist', '1234567890,;.:-—+*')
-    api.SetImage(Image.fromarray(255-img))
+    api.SetImage(Image.fromarray(255-np.hstack((img,img))))
     text: str = api.GetUTF8Text()
     text = re.sub("[^0-9]", "", text)
+    text = text[:int(len(text)/2)]
     if len(text) != 0:
         return int(text)
     return None
