@@ -1,3 +1,4 @@
+from CrosswordSolverLogic.SingleCellData import SingleQuestionData
 from ..Utility import ImageWarping as ImgWp
 from . import SingleCellDataExtraction as SCellDataExtr
 from . import CellIndexing as CellIndx
@@ -21,7 +22,8 @@ def extractCellsData(img: Cv2Image, cellrects: list[CellRect]) -> CrossWordData:
     clustersdata: list[ClusterData] = []
     for i, cluster in enumerate(cellclusters):
         blankcells = [cell for cell in cluster if cell.content.blank]
-        _setSolutionReferences(solutioncells,i,blankcells)
+        if solutioncells:
+            _setSolutionReferences(solutioncells,i,blankcells)
 
         arrowcells = [cell for cell in blankcells if cell.content.arrows]
         questioncells = [cell for cell in cluster if cell.content.doublequestion or cell.content.singlequestion]
@@ -38,6 +40,8 @@ def extractCellsData(img: Cv2Image, cellrects: list[CellRect]) -> CrossWordData:
 
 def _extractSolutionCells(indvcellsdata: list[CellData]) -> list[SolutionCellData]:
     numbercells = [cell for cell in indvcellsdata if cell.content.number]
+    if not numbercells:
+        return []
     maxnum = int(len(numbercells)/2)
 
     if len(numbercells) % 2 != 0:
@@ -47,7 +51,7 @@ def _extractSolutionCells(indvcellsdata: list[CellData]) -> list[SolutionCellDat
         if count == 0:
             raise Exception(f"Error while extracting collective cell data: no cell with number \'{i}\' found")
         if count == 1:
-            raise Exception(f"Error while extracting collective cell data: only 1 cell with number \'{i}\' found")
+            raise Exception(f"Error while extracting collective cell data: only one cell with number \'{i}\' found")
         elif count > 2:
             raise Exception(f"Error while extracting collective cell data: too many cells with number \'{i}\' found")
 
@@ -122,15 +126,37 @@ def _getQuestionCellLine(arrow: ArrowData, index: CellIndex, blankcells: list[Ce
 
 def _extractIndividualCellsData(img: Cv2Image,cellrects: list[CellRect]) -> list[CellData]:
     indexes = CellIndx.getindexedCells(cellrects)
-    indvcellsdata = []
+
+    indvcellsdata: list[CellData] = []
+    textimages = []
     for i,rect in enumerate(cellrects):
         index = indexes[i]
 
         cellimg = ImgWp.warpRect(img.copy(),rect)
+        content, textimg = SCellDataExtr.extractSingleCellData(cellimg)
 
-        content = SCellDataExtr.extractSingleCellData(cellimg)
+        textimages.append(textimg)
 
         indvcellsdata.append(CellData(rect,index,content))
+
+    questionidxs = []
+    for i,celldata in enumerate(indvcellsdata):
+        idx = indexes[i]
+        for arrow in celldata.content.arrows:
+           questionidxs.append(CellIndex(idx.cluster,idx.row+arrow.origin[1],idx.column+arrow.origin[0]))
+    
+    for i, textimg in enumerate(textimages):
+        if textimg is None:
+            continue
+        if indexes[i] in questionidxs:
+            text = SCellDataExtr.extractQuestionData(textimg)
+            indvcellsdata[i].content.singlequestion = SingleQuestionData(text)
+        else:
+            num = SCellDataExtr.extractNumberData(textimg)
+            if num is not None:
+                indvcellsdata[i].content.number = num
+                indvcellsdata[i].content.blank = True
+
     return indvcellsdata
 
 def _getNextCells(index: CellIndex ,number: int, numbercells: dict, maxnumber: int) -> list:

@@ -6,7 +6,7 @@ import operator
 class CellRect:
 
     def __init__(self, points):
-        self._points = self._pointsToRect(points)
+        self._points = self.pointsToRect(points)
 
     def __getitem__(self, index) -> Point:
         return self._points[index]
@@ -24,7 +24,8 @@ class CellRect:
                 return False
         return True
     
-    def _pointsToRect(self,points: list[Point]) -> list[Point]:
+    @staticmethod
+    def pointsToRect(points: list[Point]) -> list[Point]:
         bridx, _ = max(enumerate([pt[0] + pt[1] for pt in points]), key=operator.itemgetter(1))
         tlidx, _ = min(enumerate([pt[0] + pt[1] for pt in points]), key=operator.itemgetter(1))
         blidx, _ = min(enumerate([pt[0] - pt[1] for pt in points]), key=operator.itemgetter(1))

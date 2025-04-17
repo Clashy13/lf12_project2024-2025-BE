@@ -1,79 +1,61 @@
 from . import ImageProcessing as ImgProc
 from . import ArrowDataExtraction as ArrowDataExtr
-from ..Type import Cv2Image, Cv2Contour
-from ..SingleCellData import CellContentData,DoubleQuestionData,SingleQuestionData
+from ..Type import Cv2Image
+from ..SingleCellData import CellContentData,DoubleQuestionData
 
 import cv2
 from PIL import Image
-import numpy as np
 import re
 import tesserocr
 
 testdata = "./CrosswordSolverLogic/tessdata"
 api = tesserocr.PyTessBaseAPI(path=testdata, lang='deu', psm=6) # type: ignore
-api.SetVariable('tessedit_char_whitelist', 'abcdefghijklmnopqrstuvwxyzäöüABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜ0123456789,;.:-—()ß“„ ')
 
-def extractSingleCellData(img: Cv2Image) -> CellContentData:
+def extractSingleCellData(img: Cv2Image) -> tuple[CellContentData,Cv2Image|None]:
     celldata = CellContentData()
-
-    img = ImgProc.upscaleImage(img)
-
-    arrowimg = ImgProc.preProcessArrowCell(img.copy())
-
-    celldata.doublequestion = _extractDoubleQuestionData(img,arrowimg)
+    rightsizedimg = _resizeCellImage(img)
+    arrowimg = ImgProc.preProcessArrowCell(rightsizedimg.copy())
+    celldata.doublequestion = _extractDoubleQuestionData(rightsizedimg)
     if celldata.doublequestion:
-        return celldata
-    
-    arrowcontours, arrowsdata = ArrowDataExtr.getArrows(img)
-    if arrowcontours:
-        arrowimg = ImgProc.fillContours(arrowimg, arrowcontours,(0,0,0))
+        return celldata,None
+    arrowcontours, arrowsdata = ArrowDataExtr.getArrows(rightsizedimg)
     celldata.arrows = arrowsdata
     if celldata.arrows:
         celldata.blank = True
-        
-    if _imageEmpty(arrowimg):
-        celldata.blank = True
-        return celldata
-    
-    cv2.imwrite("CrosswordSolverLogic/TmpCell/tmpCell.jpg",img)
-    img = cv2.imread("CrosswordSolverLogic/TmpCell/tmpCell.jpg")
-
-    textimg = ImgProc.preProcessTextCell(img.copy())
-
+    contours, _ = cv2.findContours(arrowimg, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    filtered = []
+    for cnt in contours:
+        if ImgProc.contourNotEdge(cnt,img,4):
+            filtered.append(cnt)
+    arrowimg = ImgProc.fillContoursWhite(arrowimg, filtered)
     if arrowcontours:
-        mask = ImgProc.fillContoursWhite(arrowimg,arrowcontours)
-        kernel = np.ones((3,3),np.uint8)
-        dilation = cv2.dilate(mask,kernel,iterations = 1)
-        biggerarrowcontours,_ = cv2.findContours(dilation, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        textimg = ImgProc.fillContours(textimg, list(biggerarrowcontours),(0,0,0))
-
-    newheight = 166
-    oldheight = textimg.shape[0]
-    factor = newheight / oldheight
-    rightsizedimg = cv2.resize(textimg, (0, 0), fx = factor, fy = factor)
+        arrowimg = ImgProc.fillContours(arrowimg, arrowcontours,(0,0,0))
     
-    text = _extractText(rightsizedimg)
-
-    dcount = 0
-    lcount = 0
-    for c in text:
-        if c.isdigit():
-            dcount += 1
-        elif c.isalpha():
-            lcount += 1
+    cv2.imwrite("CrosswordSolverLogic/TmpCell/tmpCell.jpg",rightsizedimg)
+    rightsizedimg = cv2.imread("CrosswordSolverLogic/TmpCell/tmpCell.jpg")
     
-    if dcount == 0 and lcount == 0:
-        pass
-    elif dcount >= lcount:
-        number = int(''.join(filter(lambda x: x.isdigit(), text)))
-        celldata.number = number
-    elif lcount > 0 and not celldata.arrows:
-        celldata.singlequestion = SingleQuestionData(text)
+    textimg = ImgProc.preProcessTextCell(rightsizedimg.copy(),arrowcontours)
 
-    if celldata.singlequestion is None:
+    bordered = ImgProc.drawBorder(textimg.copy(),(0,0,0),10)
+    if _imageEmpty(bordered) or _imageEmpty(cv2.threshold(bordered,10,255,cv2.THRESH_BINARY)[1]):
         celldata.blank = True
-            
-    return celldata
+        return celldata,None
+    
+    return celldata,textimg
+
+def extractQuestionData(img: Cv2Image) -> str:
+    api.SetVariable('tessedit_char_whitelist', 'abcdefghijklmnopqrstuvwxyzäöüABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜ0123456789,;.:-—()ß?“„ ')
+    text = _extractText(img)
+    return text
+
+def extractNumberData(img: Cv2Image) -> int | None:
+    api.SetVariable('tessedit_char_whitelist', '1234567890,;.:-—+*')
+    api.SetImage(Image.fromarray(255-img))
+    text: str = api.GetUTF8Text()
+    text = re.sub("[^0-9]", "", text)
+    if len(text) != 0:
+        return int(text)
+    return None
 
 def _extractText(img: Cv2Image) -> str:
     api.SetImage(Image.fromarray(255-img))
@@ -90,39 +72,22 @@ def _extractText(img: Cv2Image) -> str:
     text = text.strip()
     return text
 
-def _extractDoubleQuestionData(img: Cv2Image, arrowimg: Cv2Image) -> DoubleQuestionData | None:
-    contours, _ = cv2.findContours(arrowimg, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    linecontour, position = _findDoubleQuestionLine(arrowimg.copy(),list(contours))
-
-    if position and linecontour:
-        textimg = ImgProc.preProcessTextCell(img.copy())
-        textimg = ImgProc.fillContours(textimg, [linecontour],(0,0,0))
-        pos = int(position * textimg.shape[0])
-        topimg = textimg[:pos, :]
-        bottomimg = textimg[pos:, :]
-        
-        text1 = _extractText(topimg)
-        text2 = _extractText(bottomimg)
-        return DoubleQuestionData(text1,text2,position)
-    return None
-
-
-def _findDoubleQuestionLine(img: Cv2Image, contours: list[Cv2Contour]) -> tuple[Cv2Contour | None,float | None]:
-    hullfactor = 0.4
-    widthfactor = 0.06
-    heightfactor = 0.05
-    for contour in contours:
-        hull = cv2.convexHull(contour)
-        area1 = cv2.contourArea(contour)
-        area2 = cv2.contourArea(hull)
-        x, y, w, h = cv2.boundingRect(hull)
-        if (area1 <= area2 * (1+hullfactor) and 
-            area1 >= area2 * (1-hullfactor) and
-            w >= img.shape[1] * (1-widthfactor) and
-            h <= img.shape[0] *  heightfactor):
-            position = (y + int(h/2)) / img.shape[0]
-            return hull, position
-    return None, None
+def _extractDoubleQuestionData(img: Cv2Image) -> DoubleQuestionData | None:
+    textimages = ImgProc.preProcessDoubleQuestionCell(img)
+    if textimages is None:
+        return None
+    position = textimages[0].shape[0]/(textimages[0].shape[0]+textimages[1].shape[0])
+    textimg1 = ImgProc.preProcessTextCell(textimages[0],[])
+    textimg2 = ImgProc.preProcessTextCell(textimages[1],[])
+    text1 = extractQuestionData(textimg1)
+    text2 = extractQuestionData(textimg2)
+    return DoubleQuestionData(text1,text2,position)
 
 def _imageEmpty(img:Cv2Image) -> bool:
-    return cv2.countNonZero(img) <= 20
+    return cv2.countNonZero(img) <= 100
+
+def _resizeCellImage(img: Cv2Image) -> Cv2Image:
+    newheight = 166
+    oldheight = img.shape[0]
+    factor = newheight / oldheight
+    return cv2.resize(img, (0, 0), fx = factor, fy = factor)

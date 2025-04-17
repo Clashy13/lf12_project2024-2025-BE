@@ -3,6 +3,7 @@ from ..Type import Cv2Image, Cv2Contour, Triangle, Point
 from ..SingleCellData import ArrowsData, ArrowData
 from . import ImageProcessing as ImgProc
 
+import numpy as np
 import cv2
 
 def getArrows(img: Cv2Image) -> tuple[list[Cv2Contour], ArrowsData]:
@@ -12,16 +13,15 @@ def getArrows(img: Cv2Image) -> tuple[list[Cv2Contour], ArrowsData]:
     arrowheadimg = ImgProc.preProcessArrowHeadCell(img.copy())
     bigcontour, circlearrows = _getCircleArrows(arrowimg, arrowheadimg)
     if bigcontour is not None:
-        arrowimg = ImgProc.fillContoursBlack(arrowimg,[bigcontour])
-        arrowheadimg = ImgProc.fillContoursBlack(arrowheadimg,[bigcontour])
         allcontours.append(bigcontour)
-    smallcontours, smallarrows = _getSmallArrows(arrowimg, arrowheadimg)
-    longcontours, longarrows = _getLongArrows(arrowimg, arrowheadimg)
-    allcontours.extend(smallcontours)
-    allcontours.extend(longcontours)
-    allarrows.extend(circlearrows)
-    allarrows.extend(smallarrows)
-    allarrows.extend(longarrows)
+        allarrows.extend(circlearrows)
+    else:
+        smallcontours, smallarrows = _getSmallArrows(arrowimg, arrowheadimg)
+        longcontours, longarrows = _getLongArrows(arrowimg, arrowheadimg)
+        allcontours.extend(smallcontours)
+        allcontours.extend(longcontours)
+        allarrows.extend(smallarrows)
+        allarrows.extend(longarrows)
     return allcontours, allarrows
 
 def _getCircleArrows(arrowimg: Cv2Image, arrowheadimg: Cv2Image) -> tuple[Cv2Contour | None, ArrowsData]:
@@ -31,7 +31,7 @@ def _getCircleArrows(arrowimg: Cv2Image, arrowheadimg: Cv2Image) -> tuple[Cv2Con
     onlybigimg = ImgProc.fillBackgroundBlack(arrowimg.copy(),[biggestcnt])
     onlybigheadimg = ImgProc.fillBackgroundBlack(arrowheadimg.copy(),[biggestcnt])
     headcontours, _ = cv2.findContours(onlybigheadimg, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
+    borderwidth = 7
     arrows = []
 
     for cnt in headcontours:
@@ -42,12 +42,14 @@ def _getCircleArrows(arrowimg: Cv2Image, arrowheadimg: Cv2Image) -> tuple[Cv2Con
         if _arrrowDown(triangle):
             long = center[1] >= arrowimg.shape[0] * 0.15
             if long:
-                minx = min(p[0] for p in triangle)
+                miny = min(p[1] for p in triangle)
                 cut = onlybigimg.copy()
-                cut[:,minx+1:] = 0
-                bigcnt = _getBiggestContour(cut)
-                if bigcnt is not None:
-                    arrowdata = _getLongArrowData(cut,bigcnt,(0,1))
+                cut[miny:,:] = 0
+                cut = ImgProc.drawBorder(cut,(0,0,0),borderwidth)
+                orgcntcut = _getBiggestContour(cut)
+
+                if orgcntcut is not None:
+                    arrowdata = _getLongArrowData(cut,orgcntcut,(0,1),center)
                     arrows.append(arrowdata)
             else:
                 position = sum(x for x,y in triangle)/len(triangle)/arrowimg.shape[1]
@@ -55,129 +57,115 @@ def _getCircleArrows(arrowimg: Cv2Image, arrowheadimg: Cv2Image) -> tuple[Cv2Con
         elif _arrrowRight(triangle):
             long = center[0] >= arrowimg.shape[1] * 0.15
             if long:
-                miny = min(p[1] for p in triangle)
+                minx = min(p[0] for p in triangle)
                 cut = onlybigimg.copy()
-                cut[miny+1:,:] = 0
-                bigcnt = _getBiggestContour(cut)
-                if bigcnt is not None:
-                    arrowdata = _getLongArrowData(cut,bigcnt,(1,0))
+                cut[:,minx:] = 0
+                cut = ImgProc.drawBorder(cut,(0,0,0),borderwidth)
+                orgcntcut = _getBiggestContour(cut)
+
+                if orgcntcut is not None:
+                    arrowdata = _getLongArrowData(cut,orgcntcut,(1,0),center)
                     arrows.append(arrowdata)
             else:
                 position = sum(y for x,y in triangle)/len(triangle)/arrowimg.shape[0]
                 arrows.append(ArrowData((-1,0),(1,0),position))
-
     return biggestcnt, arrows
 
 def _getSmallArrows(arrowimg: Cv2Image, arrowheadimg: Cv2Image) -> tuple[list[Cv2Contour], ArrowsData]:
-    contours = []
+    arrowcontours = []
     arrows = []
+    contours, _ = cv2.findContours(arrowimg, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     headcontours, _ = cv2.findContours(arrowheadimg, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     foundtop = False
-    top = _getDownSmallArrowImage(arrowimg)
-    contourstop, _ = cv2.findContours(top, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    for cnt in headcontours:
-        triangle = _contourToTriangle(top,cnt)
-        if triangle is None or not _arrrowDown(triangle):
-            continue
-
-        center = GeomCalc.centerOfTriangle(triangle)
-        if center[1] >= arrowimg.shape[0] * 0.15:
-            continue
-
-        orgcnt = _getOriginalContour(triangle,list(contourstop))
-        if orgcnt is None:
-            continue
-        
-        if foundtop:
-            raise Exception("Error while extracting arrow data: found two small arrows pointing downwards")
-
-        position = sum(x for x,y in triangle)/len(triangle)/arrowimg.shape[1]
-        arrows.append(ArrowData((0,-1),(0,1),position))
-        contours.append(orgcnt)
-        foundtop = True
-
     foundleft = False
-    left = _getLeftSmallArrowImage(arrowimg)
-    contoursleft, _ = cv2.findContours(left, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     for cnt in headcontours:
-        triangle = _contourToTriangle(top,cnt)
-        if triangle is None or not _arrrowRight(triangle):
+        triangle = _contourToTriangle(arrowheadimg,cnt)
+        if triangle is None:
+            continue
+        orgcnt = _getOriginalContour(triangle,list(contours))
+        if orgcnt is None:
             continue
 
         center = GeomCalc.centerOfTriangle(triangle)
-        if center[0] >= arrowimg.shape[1] * 0.15:
-            continue
+        if _arrrowDown(triangle):
+            if center[1] >= arrowimg.shape[0] * 0.15:
+                continue
+            if foundtop:
+                raise Exception("Error while extracting arrow data: found two small arrows pointing downwards")
+            position = sum(x for x,y in triangle)/len(triangle)/arrowimg.shape[1]
+            arrows.append(ArrowData((0,-1),(0,1),position))
+            arrowcontours.append(orgcnt)
+            foundtop = True
 
-        orgcnt = _getOriginalContour(triangle,list(contoursleft))
-        if orgcnt is None:
-            continue
-        
-        if foundleft:
-            raise Exception("Error while extracting arrow data: found two small arrows pointing to the right")
-
-        position = sum(y for x,y in triangle)/len(triangle)/arrowimg.shape[0]
-        arrows.append(ArrowData((-1,0),(1,0),position))
-        contours.append(orgcnt)
-        foundleft = True
+        if _arrrowRight(triangle):
+            if center[0] >= arrowimg.shape[1] * 0.15:
+                continue
+            if foundleft:
+                raise Exception("Error while extracting arrow data: found two small arrows pointing to the right")
+            position = sum(y for x,y in triangle)/len(triangle)/arrowimg.shape[0]
+            arrows.append(ArrowData((-1,0),(1,0),position))
+            arrowcontours.append(orgcnt)
+            foundleft = True
     
-    return contours, arrows
+    return arrowcontours, arrows
 
 def _getLongArrows(arrowimg: Cv2Image, arrowheadimg: Cv2Image) -> tuple[list[Cv2Contour], ArrowsData]:
     arrowcontours = []
     arrows = []
     contours, _ = cv2.findContours(arrowimg, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    headcontours, _ = cv2.findContours(arrowheadimg, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    borderwidth = 7
+    h,w = arrowimg.shape[:2]
 
     foundtop = False
-    top = _getDownLongArrowImage(arrowheadimg)
-    contourstop, _ = cv2.findContours(top, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    for cnt in contourstop:
-        triangle = _contourToTriangle(top,cnt)
-        if triangle is None or not _arrrowDown(triangle):
-            continue
-
-        center = GeomCalc.centerOfTriangle(triangle)
-        if center[1] < arrowimg.shape[0] * 0.15:
-            continue
-
-        orgcnt = _getOriginalContour(triangle,list(contours))
-        if orgcnt is None:
-            continue
-        
-
-        arrowdata = _getLongArrowData(arrowimg,orgcnt,(0,1))
-        if arrowdata:
-            if foundtop:
-                raise Exception("Error while extracting arrow data: found two long arrows pointing downwards")
-
-            arrows.append(arrowdata)
-            arrowcontours.append(orgcnt)
-            foundtop = True
-    
     foundleft = False
-    left = _getLeftLongArrowImage(arrowheadimg)
-    contoursleft, _ = cv2.findContours(left, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    for cnt in contoursleft:
-        triangle = _contourToTriangle(top,cnt)
-        if triangle is None or not _arrrowRight(triangle):
+    for cnt in headcontours:
+        triangle = _contourToTriangle(arrowheadimg,cnt)
+        if triangle is None:
             continue
-
-        center = GeomCalc.centerOfTriangle(triangle)
-        if center[0] < arrowimg.shape[1] * 0.15:
-            continue
-
         orgcnt = _getOriginalContour(triangle,list(contours))
         if orgcnt is None:
             continue
 
-        arrowdata = _getLongArrowData(arrowimg,orgcnt,(1,0))
-        if arrowdata:
-            if foundleft:
-                raise Exception("Error while extracting arrow data: found two long arrows pointing to the right")
-            arrows.append(arrowdata)
-            arrowcontours.append(orgcnt)
-            foundleft = True
-        
+        mask = np.ones_like(arrowimg) * 0
+        cv2.drawContours(mask, [orgcnt], -1, (255, 255, 255),-1, cv2.LINE_AA) # type: ignore
+        mask = ImgProc.drawBorder(mask,(0,0,0),borderwidth)
+
+        center = GeomCalc.centerOfTriangle(triangle)
+        if _arrrowDown(triangle):
+            if center[1] < arrowimg.shape[0] * 0.15:
+                continue
+            miny = min(p[1] for p in triangle)
+            cut = mask.copy()
+            cut[miny:,:] = 0
+            bigcnt = _getBiggestContour(cut)
+            if bigcnt is None:
+                continue
+            arrowdata = _getLongArrowData(arrowimg,bigcnt,(0,1),center)
+            if arrowdata:
+                if foundtop:
+                    raise Exception("Error while extracting arrow data: found two long arrows pointing downwards")
+                arrows.append(arrowdata)
+                arrowcontours.append(orgcnt)
+                foundtop = True
+            
+        if _arrrowRight(triangle):
+            if center[0] < arrowimg.shape[1] * 0.15:
+                continue
+            minx = min(p[0] for p in triangle)
+            cut = mask.copy()
+            cut[:,minx:] = 0
+            bigcnt = _getBiggestContour(cut)
+            if bigcnt is None:
+                continue
+            arrowdata = _getLongArrowData(arrowimg,bigcnt,(1,0),center)
+            if arrowdata:
+                if foundleft:
+                    raise Exception("Error while extracting arrow data: found two long arrows pointing to the right")
+                arrows.append(arrowdata)
+                arrowcontours.append(orgcnt)
+                foundleft = True
     return arrowcontours, arrows
 
 def _getOriginalContour(triangle: Triangle, contours: list[Cv2Contour]) -> Cv2Contour | None:
@@ -187,136 +175,75 @@ def _getOriginalContour(triangle: Triangle, contours: list[Cv2Contour]) -> Cv2Co
             return c
     return None
 
-def _getDownSmallArrowImage(img: Cv2Image) -> Cv2Image:
-    h,w = img.shape[:2]
-    contours, _ = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    wrongcontours = []
-    for cnt in contours:
-        inside = True
-        for p in cnt:
-            x,y = p[0]
-            if x < w*0.35 or x > w*0.65 or y > h*0.3:
-                inside = False
-                break
-        if not inside:
-            wrongcontours.append(cnt)
-    return ImgProc.fillContours(img.copy(),wrongcontours,(0,0,0))
-
-def _getLeftSmallArrowImage(img: Cv2Image) -> Cv2Image:
-    h,w = img.shape[:2]
-    contours, _ = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    wrongcontours = []
-    for cnt in contours:
-        inside = True
-        for p in cnt:
-            x,y = p[0]
-            if x > w*0.3:
-                inside = False
-                break
-        if not inside:
-            wrongcontours.append(cnt)
-    return ImgProc.fillContours(img.copy(),wrongcontours,(0,0,0))
-
-def _getDownLongArrowImage(img: Cv2Image) -> Cv2Image:
-    h,w = img.shape[:2]
-    contours, _ = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    wrongcontours = []
-    for cnt in contours:
-        inside = True
-        for p in cnt:
-            x,y = p[0]
-            if x < w*0.35 or x > w*0.65 or y > h*0.5:
-                inside = False
-                break
-        if not inside:
-            wrongcontours.append(cnt)
-    return ImgProc.fillContours(img.copy(),wrongcontours,(0,0,0))
-
-def _getLeftLongArrowImage(img: Cv2Image) -> Cv2Image:
-    h,w = img.shape[:2]
-    contours, _ = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    wrongcontours = []
-    for cnt in contours:
-        inside = True
-        for p in cnt:
-            x,y = p[0]
-            if y < h*0.35 or y > h*0.65 or x > w*0.5:
-                inside = False
-                break
-        if not inside:
-            wrongcontours.append(cnt)
-    return ImgProc.fillContours(img.copy(),wrongcontours,(0,0,0))
-
 def _contourToTriangle(img: Cv2Image, contour: Cv2Contour) -> Triangle | None:
-    imgperi = img.shape[0]*2 + img.shape[1]*2
-    epsi = imgperi * 0.008
+    epsi = img.shape[0]*4 * 0.005
     approx = cv2.approxPolyDP(contour, epsi, True)
-    if len(approx) != 3:
+    if len(approx) < 3:
         return None
-
-    triangle = approx.squeeze().tolist()
-
+    corners = list(approx.squeeze().tolist())
+    while True:
+        found = False
+        for i in range(len(corners)):
+            pt0 = corners[(i-1)%len(corners)]
+            pt1 = corners[i]
+            pt2 = corners[(i+1)%len(corners)]
+            ang = GeomCalc.angle(pt0, pt2, pt1)
+            if ang > 100:
+                corners = corners[:i] + corners[i+1:]
+                found = True
+                break
+        if len(corners) < 3:
+            return None
+        if not found:
+            break
+    
     hull = cv2.convexHull(contour)
     hullarea = cv2.contourArea(hull)
     cntarea = cv2.contourArea(contour)
     if cntarea < hullarea * 0.7:
         return None
-    triarea = GeomCalc.polygonArea(triangle)
-    if triarea < hullarea * 0.7:
-        return None
     
-    return triangle
+    maxarea = 0
+    maxtriangle: Triangle | None = None
+    for i in range(len(corners)-2):
+        for j in range(i+1,len(corners)-1):
+            for k in range(j+1,len(corners)):
+                triangle = Triangle([corners[i],corners[j],corners[k]])
+                triarea = GeomCalc.polygonArea(list(triangle))
+                if triarea >= hullarea * 0.6 and triarea > maxarea:
+                    maxtriangle = triangle
 
-def _getLongArrowData(img: Cv2Image, contour: Cv2Contour, direction: Point) -> ArrowData | None:
+    return maxtriangle
+
+def _getLongArrowData(img: Cv2Image, contour: Cv2Contour, direction: Point, arrowcenter: Point) -> ArrowData | None:
     points = contour.squeeze()
-    maxy_point = max(points, key=lambda p: p[1])
-    maxx_point = max(points, key=lambda p: p[0])
-    miny_point = min(points, key=lambda p: p[1])
-    minx_point = min(points, key=lambda p: p[0])
+    furthest_point = max(points,key=lambda p: GeomCalc.distBetweenPoints(p,arrowcenter))
+    max_ydist = img.shape[0]-furthest_point[1]
+    max_xdist = img.shape[1]-furthest_point[0]
+    min_ydist = furthest_point[1]
+    min_xdist = furthest_point[0]
+    min_dist = min([max_ydist,max_xdist,min_ydist,min_xdist])
 
-    maxydist = img.shape[0]-maxy_point[1]
-    maxxdist = img.shape[1]-maxx_point[0]
-    minydist = miny_point[1]
-    minxdist = minx_point[0]
-
-    pointdists = [(maxy_point,maxydist),
-                  (maxx_point,maxxdist),
-                  (miny_point,minydist),
-                  (minx_point,minxdist)]
-    closestpoint, closestdist = min(pointdists, key=lambda pointdist: pointdist[1])
-    
     if direction == (0,1):
-        if closestdist == minydist:
-            if closestdist > img.shape[0] * 0.03:
-                return None
-            if miny_point[0]/img.shape[1] < 0.5:
+        if min_dist == min_ydist:
+            if furthest_point[0]/img.shape[1] < 0.5:
                 return ArrowData((-1,-1),direction,-1)
             else:
                 return ArrowData((1,-1),direction,-1)
-        if closestdist == minxdist and closestpoint[0] == minx_point[0] and closestpoint[1] == minx_point[1]:
-            if closestdist > img.shape[1] * 0.03:
-                return None
-            return ArrowData((-1,0),direction, minx_point[1]/img.shape[0])
-        if closestdist == maxxdist and closestpoint[0] == maxx_point[0] and closestpoint[1] == maxx_point[1]:
-            if closestdist > img.shape[1] * 0.03:
-                return None
-            return ArrowData((1,0),direction, maxx_point[1]/img.shape[0])
-    else:
-        if closestdist == minxdist:
-            if closestdist > img.shape[1] * 0.03:
-                return None
-            if miny_point[1]/img.shape[0] < 0.5:
+        if min_dist == min_xdist:
+            return ArrowData((-1,0),direction, furthest_point[1]/img.shape[0])
+        if min_dist == max_xdist:
+            return ArrowData((1,0),direction, furthest_point[1]/img.shape[0])
+    elif direction == (1,0):
+        if min_dist == min_xdist:
+            if furthest_point[1]/img.shape[0] < 0.5:
                 return ArrowData((-1,-1),direction,-1)
             else:
                 return ArrowData((-1,1),direction,-1)
-        if closestdist == minydist and closestpoint[0] == miny_point[0] and closestpoint[1] == miny_point[1]:
-            if closestdist > img.shape[0] * 0.03:
-                return None
-            return ArrowData((0,-1),direction, miny_point[0]/img.shape[1])
-        if closestdist == maxydist and closestpoint[0] == maxy_point[0] and closestpoint[1] == maxy_point[1]:
-            if closestdist > img.shape[0] * 0.03:
-                return None
-            return ArrowData((0,1),direction, maxy_point[0]/img.shape[1])
+        if min_dist == min_ydist:
+            return ArrowData((0,-1),direction, furthest_point[0]/img.shape[1])
+        if min_dist == max_ydist:
+            return ArrowData((0,1),direction, furthest_point[0]/img.shape[1])
     return None
 
 def _arrrowDown(triangle: Triangle) -> bool:
@@ -351,7 +278,7 @@ def _getBigCircleContour(img: Cv2Image) -> Cv2Contour | None:
     biggestcnt = _getBiggestContour(img)
     if biggestcnt is None:
         return None
-    hull = cv2.convexHull(biggestcnt)
+    hull = cv2.convexHull(biggestcnt) # type: ignore
     area = cv2.contourArea(hull)
     if area <= imgarea*0.5:
         return None
