@@ -117,8 +117,10 @@ class UploadImage(generics.CreateAPIView):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        instance = self.perform_create(serializer)
+        self.perform_create(serializer)
         headers = self.get_success_headers(serializer.data)
         return Response(
-            {"id": str(instance.id)}, status=status.HTTP_201_CREATED, headers=headers
+            {"id": str(serializer.instance.id)},
+            status=status.HTTP_201_CREATED,
+            headers=headers,
         )
