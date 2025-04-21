@@ -3,12 +3,13 @@ from rest_framework import generics
 from rest_framework.parsers import MultiPartParser, FormParser
 from .models import CrosswordModel
 from .serializers import CreateImageSerializer, OverviewSerializer, ImagePathSerializer
-from drf_spectacular.utils import extend_schema, OpenApiParameter
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse
 from rest_framework.exceptions import ValidationError
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter
 from rest_framework.pagination import LimitOffsetPagination
 from rest_framework.response import Response
+from rest_framework import status
 
 from . import settings
 from CrosswordSolverLogic import CrosswordSolver
@@ -100,14 +101,24 @@ class UploadImage(generics.CreateAPIView):
     @extend_schema(
         description="Upload a new crossword image",
         request=CreateImageSerializer,
-        responses={201: CreateImageSerializer()},
+        responses={
+            201: OpenApiResponse(
+                response={"id": str}, description="ID of the created crossword entry"
+            )
+        },
     )
     def perform_create(self, serializer):
-        if not os.path.isdir(str(settings.MEDIA_ROOT) + "/solved/"):
-            os.mkdir(settings.MEDIA_ROOT)
-            os.mkdir(str(settings.MEDIA_ROOT) + "/solved/")
         instance = serializer.save()
+        if not os.path.isdir(os.path.join(settings.MEDIA_ROOT, "solved")):
+            os.makedirs(os.path.join(settings.MEDIA_ROOT, "solved"))
         CrosswordSolver.solve(instance.original_image.path)
+        return instance
 
-    def post(self, request, *args, **kwargs):
-        return super().post(request, *args, **kwargs)
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        instance = self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(
+            {"id": str(instance.id)}, status=status.HTTP_201_CREATED, headers=headers
+        )
