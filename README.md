@@ -15,6 +15,9 @@ This is the backend for the CrossSolver (name subject to change), a school proje
 - Retrieve crossword original and solved iamges
 - Delete crossword entries
 
+## Requirements
+Download and install [Python3.11](https://www.python.org/downloads/release/python-31111/)
+
 ## Installation
 1. **Clone the repository:**
     ```sh
@@ -26,7 +29,7 @@ This is the backend for the CrossSolver (name subject to change), a school proje
 
 2. **Create and activate a virtual environment:**
     ```sh
-    python3 -m venv .venv
+    python3.11 -m venv .venv
     ```
     On Linux & MacOS use
     ```sh
@@ -49,8 +52,11 @@ This is the backend for the CrossSolver (name subject to change), a school proje
 
 4. **Apply migrations:**
     ```sh
-    python manage.py migrate
-    ```
+    python manage.py makemigrations lf12_crosswordReader_backend
+   ```
+    ```sh
+    python manage.py migrate lf12_crosswordReader_backend
+   ```
 
 5. **Run the server:**
     ```sh
