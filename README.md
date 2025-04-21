@@ -50,7 +50,7 @@ Download and install [Python3.11](https://www.python.org/downloads/release/pytho
     python -m spacy download de_core_news_lg
     ```
 
-4. **Apply migrations:**
+5. **Apply migrations:**
     ```sh
     python manage.py makemigrations lf12_crosswordReader_backend
    ```
@@ -58,7 +58,7 @@ Download and install [Python3.11](https://www.python.org/downloads/release/pytho
     python manage.py migrate lf12_crosswordReader_backend
    ```
 
-5. **Run the server:**
+6. **Run the server:**
     ```sh
     python manage.py runserver
     ```
