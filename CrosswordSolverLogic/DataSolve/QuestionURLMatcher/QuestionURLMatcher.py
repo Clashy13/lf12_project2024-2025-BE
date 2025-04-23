@@ -6,7 +6,7 @@ import spacy
 dir = "CrosswordSolverLogic/DataSolve/QuestionURLMatcher/"
 nlp = spacy.load("de_core_news_lg")
 model = SentenceTransformer("sentence-transformers/gtr-t5-large") # type: ignore
-f = open(dir + "questions.txt","r")
+f = open(dir + "questions.txt","r",encoding='utf-8')
 questions = f.read().split("\n")
 f.close()
 index = faiss.read_index(dir + "index.faiss")
