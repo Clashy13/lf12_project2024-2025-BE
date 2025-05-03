@@ -24,7 +24,7 @@ Download and install [Python3.11](https://www.python.org/downloads/release/pytho
     git clone https://github.com/Clashy13/lf12_project2024-2025-BE.git
     ```
     ```sh
-    cd lf12project2024-2025-BE
+    cd lf12_project2024-2025-BE
     ```
 
 2. **Create and activate a virtual environment:**
