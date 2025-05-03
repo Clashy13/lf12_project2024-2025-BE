@@ -21,7 +21,7 @@ Download and install [Python3.11](https://www.python.org/downloads/release/pytho
 ## Installation
 1. **Clone the repository:**
     ```sh
-    git clone https://github.com/Thom402/lf12project2024-2025-BE.git
+    git clone https://github.com/Clashy13/lf12_project2024-2025-BE.git
     ```
     ```sh
     cd lf12project2024-2025-BE
